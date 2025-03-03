@@ -1,8 +1,8 @@
 [package]
 name = "lvm-sys2"
-version = "0.1.1"
-authors = ["Chris Holcombe <xfactor973@gmail.com>"]
-homepage = "https://github.com/cholcombe973/lvm-sys"
+version = "1.1.1"
+authors = ["Chris Holcombe <xfactor973@gmail.com>", "Skorobogaty Dmitry <skorobogatydmitry@gmail.com>"]
+homepage = "https://github.com/skorobogatydmitry/lvm-sys2"
 build = "build.rs"
 description = "LVM FFI bindings"
 license = "MIT"
