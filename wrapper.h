@@ -1,2 +1,2 @@
-#include <lvm2app.h>
+#include <lvm2cmd.h>
 #include <libdevmapper.h>

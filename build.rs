@@ -6,7 +6,7 @@ use std::path::PathBuf;
 fn main() {
     // Tell cargo to tell rustc to link the system lvm2app
     // shared library.
-    println!("cargo:rustc-link-lib=lvm2app");
+    println!("cargo:rustc-link-lib=lvm2cmd");
     println!("cargo:rustc-link-lib=devmapper");
 
     let bindings = bindgen::Builder::default()
@@ -26,6 +26,7 @@ fn main() {
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings.write_to_file(out_path.join("bindings.rs"))
+    bindings
+        .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 }
