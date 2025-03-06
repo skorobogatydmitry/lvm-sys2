@@ -1,6 +1,3 @@
-extern crate lvm_sys2;
-extern crate rstest;
-
 use lvm_sys2::lvm::Lvm;
 use rstest::rstest;
 

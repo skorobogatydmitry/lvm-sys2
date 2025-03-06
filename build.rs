@@ -13,12 +13,12 @@ fn main() {
         // The input header we would like to generate
         // bindings for.
         .header("wrapper.h")
-        .whitelist_function("dm_list_first")
-        .whitelist_function("dm_list_next")
-        .whitelist_function("dm_list_end")
-        .whitelist_function("lvm.*")
-        .whitelist_type("*list_t")
-        .whitelist_type("dm_str_list")
+        .allowlist_function("dm_list_first")
+        .allowlist_function("dm_list_next")
+        .allowlist_function("dm_list_end")
+        .allowlist_function("lvm.*")
+        .allowlist_type("*list_t")
+        .allowlist_type("dm_str_list")
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.

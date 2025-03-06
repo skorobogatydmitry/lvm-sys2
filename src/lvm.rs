@@ -1,15 +1,18 @@
-//! # Safe wrapper for lvm2cmd.h bindings of the crate.
-//! TODO: moar detail
+//! Safe wrapper for lvm2cmd.h bindings of the crate.  
+//! It maintails a singletone [LVM] to run commands.  
+//! The main interface is [Lvm::run], which runs the specified command and returns output as JSON or error if any.
 
 use std::{
     collections::HashMap,
-    ffi::{c_char, c_int, c_void, CStr, CString, NulError},
+    ffi::{CStr, CString, NulError, c_char, c_int, c_void},
     str::FromStr,
     sync::{
-        mpsc::{self, Receiver, Sender},
         Condvar, LazyLock, Mutex,
+        mpsc::{self, Receiver, Sender},
     },
 };
+
+pub use serde_json::Value;
 
 use crate::{lvm2_exit, lvm2_init, lvm2_log_fn, lvm2_run};
 
@@ -52,9 +55,7 @@ impl Lvm {
     /// Err contains [CommandRetCode] - the reason why command execution failed. It could be:
     /// - recoverable (e.g. intermittent lvm2cmd errors)
     /// - permanent as in locks poisoning (e.g. log receiver panicked at some point)
-    pub fn run(
-        command: &str,
-    ) -> Result<HashMap<serde_json::Value, serde_json::Value>, CommandRetCode> {
+    pub fn run(command: &str) -> Result<HashMap<String, serde_json::Value>, CommandRetCode> {
         Self::acquire_and(|lvm| lvm._run(format!("{command} {DEFAULT_LVM_FLAGS}")))
     }
 
@@ -62,7 +63,7 @@ impl Lvm {
     fn _run(
         &mut self,
         command: String,
-    ) -> Result<HashMap<serde_json::Value, serde_json::Value>, CommandRetCode> {
+    ) -> Result<HashMap<String, serde_json::Value>, CommandRetCode> {
         let cmd = CString::from_str(command.as_str())
             .map_err(|e| CommandRetCode::InvalidCommandLine(e))?;
         match CommandRetCode::from(unsafe {

@@ -5,4 +5,5 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+#[allow(rustdoc::private_intra_doc_links)]
 pub mod lvm;
