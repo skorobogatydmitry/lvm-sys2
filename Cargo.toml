@@ -1,6 +1,6 @@
 [package]
 name = "lvm-sys2"
-version = "1.1.1"
+version = "2.0.0"
 authors = ["Chris Holcombe <xfactor973@gmail.com>", "Skorobogaty Dmitry <skorobogatydmitry@gmail.com>"]
 homepage = "https://github.com/skorobogatydmitry/lvm-sys2"
 build = "build.rs"
@@ -11,3 +11,8 @@ license = "MIT"
 bindgen = "~0.40"
 
 [dependencies]
+serde = "1.0.218"
+serde_json = "1.0.140"
+
+[dev-dependencies]
+rstest = "0.25.0"

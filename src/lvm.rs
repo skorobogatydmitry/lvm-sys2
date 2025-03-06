@@ -2,6 +2,7 @@
 //! TODO: moar detail
 
 use std::{
+    collections::HashMap,
     ffi::{c_char, c_int, c_void, CStr, CString, NulError},
     str::FromStr,
     sync::{
@@ -26,7 +27,7 @@ static CHANNEL: LazyLock<Mutex<(Sender<String>, Receiver<String>)>> =
 static DATA_ARRIVED: Condvar = Condvar::new();
 static CAPTURED_CMD_DATA: Mutex<String> = Mutex::new(String::new()); // whether special log line arrived that command is executing
 
-/// LVM handle holder
+/// LVM handle keeper
 pub struct Lvm {
     handle: Box<c_void>,
 }
@@ -34,6 +35,59 @@ pub struct Lvm {
 // unsafe impl Sync for Lvm {}
 
 impl Lvm {
+    #[allow(rustdoc::private_intra_doc_links)]
+    /// # Run LVM command using a global singleton [LVM]
+    /// See `man 8 lvm` for list of available commands.  
+    /// If you application is supposed to run as non-root, see [README.md / Non-root-execution](../index.html#non-root-execution)
+    ///
+    /// # Example
+    /// ```
+    /// use lvm_sys2::lvm::Lvm;
+    /// let result = Lvm::run("lvs");
+    /// assert!(result.is_ok());
+    /// ```
+    ///
+    /// # Return value
+    /// Ok variant contains a parsed JSON structure of what would bare `lvm <command> --reportformat json` give you  
+    /// Err contains [CommandRetCode] - the reason why command execution failed. It could be:
+    /// - recoverable (e.g. intermittent lvm2cmd errors)
+    /// - permanent as in locks poisoning (e.g. log receiver panicked at some point)
+    pub fn run(
+        command: &str,
+    ) -> Result<HashMap<serde_json::Value, serde_json::Value>, CommandRetCode> {
+        Self::acquire_and(|lvm| lvm._run(format!("{command} {DEFAULT_LVM_FLAGS}")))
+    }
+
+    /// internal command runner
+    fn _run(
+        &mut self,
+        command: String,
+    ) -> Result<HashMap<serde_json::Value, serde_json::Value>, CommandRetCode> {
+        let cmd = CString::from_str(command.as_str())
+            .map_err(|e| CommandRetCode::InvalidCommandLine(e))?;
+        match CommandRetCode::from(unsafe {
+            lvm2_run(self.handle.as_mut(), cmd.as_c_str().as_ptr())
+        }) {
+            CommandRetCode::CommandSucceeded => (),
+            other => return Err(other),
+        }
+        // receive data from logs
+        let ch = CHANNEL
+            .lock()
+            .map_err(|_e| CommandRetCode::GlobalStatePoisoned)?;
+        let string_data = match ch.1.try_recv() {
+            Ok(res) => res,
+            Err(_) => match DATA_ARRIVED.wait(ch) {
+                Ok(ch) => ch.1.recv().unwrap(), // UNWRAP: the other side cannot be closed - SENDER is static
+                Err(_) => return Err(CommandRetCode::GlobalStatePoisoned),
+            },
+        };
+
+        serde_json::from_str(&string_data)
+            .map_err(|e| CommandRetCode::JsonDeserializationFailed((e, string_data)))
+    }
+
+    /// # Do NOT use, see [Lvm::run] instead
     /// # Acquire global LVM singleton and run the specified function
     /// It's a building block to run commands. Lazy init happens here and all relevant errors handling
     /// # Panics
@@ -46,9 +100,9 @@ impl Lvm {
     /// - other CommandRetCode - inner function returned Err(CommandRetCode)
     ///
     /// Inner function isn't supposed to return CommandRetCode directly.
-    pub fn acquire_and<F: FnOnce(&mut Lvm) -> Result<String, CommandRetCode>>(
+    pub fn acquire_and<Y, F: FnOnce(&mut Lvm) -> Result<Y, CommandRetCode>>(
         f: F,
-    ) -> Result<String, CommandRetCode> {
+    ) -> Result<Y, CommandRetCode> {
         let mut guard = match LVM.lock() {
             Ok(g) => g,
             Err(_e) => return Err(CommandRetCode::GlobalStatePoisoned),
@@ -74,35 +128,6 @@ impl Lvm {
                 .ok_or(CommandRetCode::InitFailed)
         }
     }
-
-    /// Run LVM command through a global hander
-    /// See `man 8 lvm` for list of available commands
-    pub fn run(command: &str) -> Result<String, CommandRetCode> {
-        Self::acquire_and(|lvm| lvm._run(format!("{command} {DEFAULT_LVM_FLAGS}")))
-    }
-
-    /// internal command runner
-    fn _run(&mut self, command: String) -> Result<String, CommandRetCode> {
-        let cmd = CString::from_str(command.as_str())
-            .map_err(|e| CommandRetCode::InvalidCommandLine(e))?;
-        match CommandRetCode::from(unsafe {
-            lvm2_run(self.handle.as_mut(), cmd.as_c_str().as_ptr())
-        }) {
-            CommandRetCode::CommandSucceeded => (),
-            other => return Err(other),
-        }
-        // receive data from logs
-        let ch = CHANNEL
-            .lock()
-            .map_err(|_e| CommandRetCode::GlobalStatePoisoned)?;
-        match ch.1.try_recv() {
-            Ok(res) => Ok(res), // TODO: parse json
-            Err(_) => match DATA_ARRIVED.wait(ch) {
-                Ok(ch) => Ok(ch.1.recv().unwrap()), // UNWRAP: the other side cannot be closed - SENDER is static
-                Err(_) => Err(CommandRetCode::GlobalStatePoisoned),
-            },
-        }
-    }
 }
 
 impl Drop for Lvm {
@@ -113,7 +138,8 @@ impl Drop for Lvm {
     }
 }
 
-/// Possible commands return codes
+/// # Possible commands return codes
+/// Contains both - native LVM codes and introduced by the wrapper
 #[derive(Debug)]
 pub enum CommandRetCode {
     // from lvm2cmd.h
@@ -122,6 +148,8 @@ pub enum CommandRetCode {
     InvalidParameters,
     InitFailed,
     ProcessingFailed,
+    // unknown (new) code returned by lvm2cmd.h
+    Unknown(i32),
 
     // rust-specific "Codes"
     /// Command line contains \0 in the middle
@@ -130,7 +158,9 @@ pub enum CommandRetCode {
     GlobalStatePoisoned,
     /// Channel to get data from logs is poisoned - some thread panic-ed on data send / receive
     DataChannelPoisoned,
-    Unknown(i32),
+    /// Serde error re-mapped - contains serde error and original string
+    /// so the outer scope could still process it
+    JsonDeserializationFailed((serde_json::Error, String)),
 }
 
 impl From<i32> for CommandRetCode {
@@ -171,10 +201,10 @@ impl From<c_int> for LogLevel {
     }
 }
 
-/// callback for LVM logs
-/// is used to capture commands execution results
+/// # Callback for LVM logs
+/// It capture commands execution results by collecting all PRINT logs and passing it to the channel
 /// ASSUMPTION: the underlying code guarantees that this fn gets called sequentially for sequential lines
-///             JSON will be incorrect otherwise
+///             JSON doc will be incorrect otherwise
 extern "C" fn log_capturer(
     level: c_int,
     file: *const c_char,
