@@ -18,7 +18,7 @@ To run LVM commands as non-root (e.g. in crate's tests), you need to
 1. Temporary (until next reboot)
   - `sudo usermod -aG disk USERNAME` and re-login
   - `sudo chmod g+rw /dev/mapper/control; sudo chown :disk /dev/mapper/control`
-  - `sudo chmod g+rw /run/lock/lvm; sudo chown :disk /run/lock/lvm`
+  - `sudo chmod g+rwx /run/lock/lvm; sudo chown :disk /run/lock/lvm`
   - `sudo chmod g+rw /run/lvm/hints; sudo chown :disk /run/lvm/hints`
   - `sudo find /run/lvm/ -type f -print -exec chmod g+rw {} \;`
   - `sudo find /run/lvm/ -type s -print -exec chmod g+rw {} \;`
@@ -30,9 +30,9 @@ To run LVM commands as non-root (e.g. in crate's tests), you need to
 
 Refreshing:
 ```bash
-BIN_NAME="lvm"
+BIN_NAME=`which lvm`
 sudo chmod g+rw /dev/mapper/control; sudo chown :disk /dev/mapper/control
-sudo chmod g+rw /run/lock/lvm; sudo chown :disk /run/lock/lvm
+sudo chmod g+rwx /run/lock/lvm; sudo chown :disk /run/lock/lvm
 sudo chmod g+rw /run/lvm/hints; sudo chown :disk /run/lvm/hints
 sudo find /run/lvm/ -type f -print -exec chmod g+rw {} \;
 sudo find /run/lvm/ -type s -print -exec chmod g+rw {} \;

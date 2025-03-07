@@ -55,7 +55,9 @@ impl Lvm {
     /// Err contains [CommandRetCode] - the reason why command execution failed. It could be:
     /// - recoverable (e.g. intermittent lvm2cmd errors)
     /// - permanent as in locks poisoning (e.g. log receiver panicked at some point)
-    pub fn run(command: &str) -> Result<HashMap<String, serde_json::Value>, CommandRetCode> {
+    pub fn run(
+        command: &str,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, CommandRetCode> {
         Self::acquire_and(|lvm| lvm._run(format!("{command} {DEFAULT_LVM_FLAGS}")))
     }
 
@@ -63,7 +65,7 @@ impl Lvm {
     fn _run(
         &mut self,
         command: String,
-    ) -> Result<HashMap<String, serde_json::Value>, CommandRetCode> {
+    ) -> Result<serde_json::Map<String, serde_json::Value>, CommandRetCode> {
         let cmd = CString::from_str(command.as_str())
             .map_err(|e| CommandRetCode::InvalidCommandLine(e))?;
         match CommandRetCode::from(unsafe {
