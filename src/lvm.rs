@@ -3,7 +3,6 @@
 //! The main interface is [Lvm::run], which runs the specified command and returns output as JSON or error if any.
 
 use std::{
-    collections::HashMap,
     ffi::{CStr, CString, NulError, c_char, c_int, c_void},
     str::FromStr,
     sync::{

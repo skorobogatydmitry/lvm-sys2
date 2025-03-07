@@ -1,6 +1,6 @@
 [package]
 name = "lvm-sys2"
-version = "4.0.0"
+version = "4.0.1"
 authors = ["Chris Holcombe <xfactor973@gmail.com>", "Skorobogaty Dmitry <skorobogatydmitry@gmail.com>"]
 homepage = "https://github.com/skorobogatydmitry/lvm-sys2"
 build = "build.rs"
